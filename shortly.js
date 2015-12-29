@@ -1,7 +1,10 @@
 var express = require('express');
-var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
+var Promise = require('bluebird');
+var expressSession = require('express-session');
+var cookieParser = require('cookie-parser');
+var util = require('./lib/utility');
 
 
 var db = require('./app/config');
@@ -22,25 +25,30 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
+// middleware for authenticating user
+app.use(cookieParser());
+app.use(expressSession({secret: "tessahatesthemovieelf"})); 
 
-app.get('/', 
+
+
+app.get('/', util.checkUser,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
+app.get('/create', util.checkUser,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links', 
+app.get('/links', util.checkUser,
 function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
 
-app.post('/links', 
+app.post('/links', util.checkUser,
 function(req, res) {
   var uri = req.body.url;
 
@@ -76,7 +84,61 @@ function(req, res) {
 // Write your authentication routes here
 /************************************************************/
 
+app.get('/login', 
+function(req, res) {
+  res.render('login');
+});
 
+// app.post('/login',
+// function(req, res){
+//   var name = req.body.username;
+//   var pw = req.body.password;
+//   if (!name || !pw) {
+//     res.status(400).send('You need a username nad a password stupid');
+//   }
+//   // check if the username is in the db
+//   new Users({'name': name})
+//     .fetch()
+//     .then(function(user){ // user is model
+//       if (!user) {
+//         res.status(401).send('No user with the given name. Please sign up.');
+//       } else {
+//         // check if the password matches for that user
+//         if (model.get('password') !== pw) { // model.get('password')
+//           // if doesnt match
+//           res.status(401).send('Wrong password.');
+//         } else {
+//           // everything is good
+//           req.session.user = user;
+//           res.redirect('/');
+//         }
+//       }
+//     });
+// });
+
+app.get('/signup', 
+function(req, res) {
+  res.render('signup');
+});
+
+app.post('/signup', function(req,res) {
+  console.log('in /signup: ', req.body);
+  User.forge({
+    name: req.body.username,
+    password: req.body.password
+  })
+  .save()
+  .then(function(user){
+    console.log('setting session');
+    //res.json({error: false , data :{ name : user.get('name')}})
+    req.session.user = user;
+    console.log('reqs session: ', req.session.user);
+    res.redirect('/');
+  })
+  .catch(function(err){
+    res.status(500).json({error: true , data :{message: err.message}})
+  })
+});
 
 /************************************************************/
 // Handle the wildcard route last - if all other routes fail
