@@ -51,6 +51,7 @@ function(req, res) {
 app.post('/links', util.checkUser,
 function(req, res) {
   var uri = req.body.url;
+  // console.log('url: ', req.body.url, 'code: ', res.body.code, 'body', req.body);
 
   if (!util.isValidUrl(uri)) {
     console.log('Not a valid url: ', uri);
@@ -73,6 +74,7 @@ function(req, res) {
           base_url: req.headers.origin
         })
         .then(function(newLink) {
+          Links.add(newLink);
           res.send(200, newLink);
         });
       });
@@ -129,7 +131,7 @@ app.post('/signup', function(req,res) {
   })
   .save()
   .then(function(user){
-    console.log('setting session');
+    console.log('setting session, password: ', user.get('password'));
     //res.json({error: false , data :{ name : user.get('name')}})
     req.session.user = user;
     console.log('reqs session: ', req.session.user);
