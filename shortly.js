@@ -5,6 +5,7 @@ var Promise = require('bluebird');
 var expressSession = require('express-session');
 var cookieParser = require('cookie-parser');
 var util = require('./lib/utility');
+var bcrypt = require('bcrypt-nodejs');
 
 
 var db = require('./app/config');
@@ -86,37 +87,51 @@ function(req, res) {
 // Write your authentication routes here
 /************************************************************/
 
+app.get('/logout', 
+function(req, res) {
+  req.session.destroy(function(err){
+    if (err) console.log('could not log out ', err);
+  });
+  res.redirect('/login');
+});
+
 app.get('/login', 
 function(req, res) {
   res.render('login');
 });
 
-// app.post('/login',
-// function(req, res){
-//   var name = req.body.username;
-//   var pw = req.body.password;
-//   if (!name || !pw) {
-//     res.status(400).send('You need a username nad a password stupid');
-//   }
-//   // check if the username is in the db
-//   new Users({'name': name})
-//     .fetch()
-//     .then(function(user){ // user is model
-//       if (!user) {
-//         res.status(401).send('No user with the given name. Please sign up.');
-//       } else {
-//         // check if the password matches for that user
-//         if (model.get('password') !== pw) { // model.get('password')
-//           // if doesnt match
-//           res.status(401).send('Wrong password.');
-//         } else {
-//           // everything is good
-//           req.session.user = user;
-//           res.redirect('/');
-//         }
-//       }
-//     });
-// });
+app.post('/login',
+function(req, res){
+  var name = req.body.username;
+  var pw = req.body.password;
+  if (!name || !pw) {
+    res.status(400).send('You need a username nad a password stupid');
+  }
+  // check if the username is in the db
+  User.forge({'name': name})
+    .fetch()
+    .then(function(user){ // user is model
+      console.log(user)
+      if (!user) {
+        res.status(401).send('No user with the given name. Please sign up.');
+      } else {
+        // check if the password matches for that user
+        bcrypt.compare(pw, user.get('password'), function(err, hashesMatch){
+          if (err) {
+            console.log('Error matching passwords: ', err);
+          } else {
+            if (hashesMatch) { // res is true if hashed pw matches hash in db for user
+              // everything is good
+              req.session.user = user;
+              res.redirect('/');
+            } else {
+              res.status(401).send('Wrong password.');
+            }
+          }
+        });
+      }
+    });
+});
 
 app.get('/signup', 
 function(req, res) {
@@ -148,7 +163,7 @@ app.post('/signup', function(req,res) {
 // If the short-code doesn't exist, send the user to '/'
 /************************************************************/
 
-app.get('/*', function(req, res) {
+app.get('/*', util.checkUser, function(req, res) {
   new Link({ code: req.params[0] }).fetch().then(function(link) {
     if (!link) {
       res.redirect('/');
